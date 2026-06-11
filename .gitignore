@@ -1,0 +1,15 @@
+# Whitelist: ignore everything by default, un-ignore the pipeline files.
+# This keeps large data (*.h5ad), outputs, envs, and logs out of git.
+*
+
+!.gitignore
+!README.md
+!aifi_annotation2.py
+!panhuman_azimuthannotatorrun.sh
+!ct_aliases.py
+!ct_crosswalk_builder.py
+!autoanno_consensus.py
+!params_*_annotation_full.yaml
+!samplesheet_*.csv
+!CT_Ontology_Spreadsheet_*.xlsx
+!celldex_references.csv

@@ -1,0 +1,34 @@
+# ============================================================================
+# nf-core/scdownstream — CELL TYPE ANNOTATION ONLY — FULL vaccine7 (no sampling)
+# ============================================================================
+# Run (base env, with nextflow):
+#   nextflow run nf-core/scdownstream -r dev \
+#     -params-file params_vaccine7_annotation_full.yaml \
+#     -c /home/amishra/.config/nextflow/coder.config
+#
+# Output: ./vaccine7_annotation_full/reports/artifacts/concatenated.h5ad
+#   (SingleR: hpca/monaco_immune/dice + CellTypist Immune_All_Low/High in .obs)
+# ============================================================================
+
+input:  './samplesheet_vaccine7_annotation.csv'
+outdir: './vaccine7_annotation_full'
+species: 'human'
+save_intermediates: false
+
+# Annotation only — skip integration / clustering
+qc_only: true
+
+# Genes already symbols
+unify_gene_symbols: false
+
+# No filtration / no ambient / no doublets (annotate all cells, keeps cell sets
+# aligned with the AIFI + Azimuth runs for a clean merge)
+ambient_correction: 'none'
+doublet_detection: ''          # if this errors at startup, delete this line
+cell_cycle_scoring: false
+
+# CellTypist built-in immune models
+celltypist_model: 'Immune_All_Low,Immune_All_High'
+
+# SingleR celldex references
+celldex_reference: './celldex_references.csv'
