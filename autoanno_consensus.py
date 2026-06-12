@@ -82,7 +82,7 @@ BROAD_LABELS = {"Blood Cell", "Leukocyte", "Lymphoid Cell", "Myeloid Cell"}
 # Deeper tree levels are meaningless for these — voters that don't know the
 # cell type go silent at level 3+ and a single wrong voter creates spurious
 # high-confidence calls. Accept the treeLevel2 majority vote directly.
-TERMINAL_AT_L2 = {"Platelet", "HSC", "RBC"}
+TERMINAL_AT_L2 = {"Platelet", "HSC", "RBC", "Doublet"}
 TREE_LEVELS = [2, 3, 4, 5, 6]                      # autoAnno drops level 1
 TREE_COLS   = [f"treeLevel{i}" for i in range(1, 7)]
 
