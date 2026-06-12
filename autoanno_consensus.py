@@ -78,11 +78,18 @@ VOTERS_FINE7 = {
 }
 
 BROAD_LABELS = {"Blood Cell", "Leukocyte", "Lymphoid Cell", "Myeloid Cell"}
-# Nodes that are terminal at treeLevel2 (no children in the CT ontology).
-# Deeper tree levels are meaningless for these — voters that don't know the
-# cell type go silent at level 3+ and a single wrong voter creates spurious
-# high-confidence calls. Accept the treeLevel2 majority vote directly.
-TERMINAL_AT_L2 = {"Platelet", "HSC", "RBC", "Doublet"}
+# Nodes that are terminal at a specific tree level (no children in the CT ontology).
+# Voters that don't recognise these cell types go silent at deeper levels; a single
+# misidentifying voter then creates spurious high-confidence calls on another branch.
+# Accept the majority vote at the terminal level directly — keyed by that level.
+TERMINAL_NODES = {
+    2: {"Doublet", "HSC", "Platelet", "RBC"},
+    4: {"NK Cell"},
+    5: {"Basophil", "Classical Monocyte", "Conventional DC 1", "Conventional DC 2",
+        "Eosinophil", "gdT Cell", "Intermediate Monocyte", "MAIT Cell", "Mast Cell",
+        "Memory B Cell", "NKT Cell", "Naive B Cell", "Neutrophil",
+        "Non-Classical Monocyte", "Plasmacytoid DC"},
+}
 TREE_LEVELS = [2, 3, 4, 5, 6]                      # autoAnno drops level 1
 TREE_COLS   = [f"treeLevel{i}" for i in range(1, 7)]
 
@@ -211,15 +218,17 @@ def main():
     fallback = args.fallback_to_lineage
 
     def suggest(row):
-        # Pre-check: terminal-at-level-2 nodes (Platelet, HSC, RBC).
-        # Deeper tree levels are invalid for these — voters that don't recognise
-        # the cell type go silent at level 3+ and a single wrong voter creates a
-        # spurious high-confidence call.  Accept treeLevel2 if majority agree.
-        l2_label = row.get("consensusLabel_treeLevel2", "")
-        l2_cat   = row.get("confidenceCategory_treeLevel2", "")
-        if l2_label in TERMINAL_AT_L2 and l2_cat in ("high", "medium"):
-            return pd.Series([l2_label, "treeLevel2",
-                              "high" if l2_cat == "high" else "medium"])
+        # Pre-check: terminal nodes at each level. Voters that don't recognise
+        # the cell type go silent at deeper levels; a single misidentifying voter
+        # then builds spurious high-confidence calls on an unrelated branch.
+        # Scan shallow → deep: a shallower terminal match (e.g. Platelet at L2)
+        # anchors the lineage and prevents a deeper mismatch on another branch
+        # (e.g. Classical Monocyte at L5) from firing first.
+        for term_lvl in sorted(TERMINAL_NODES.keys()):
+            lbl = row.get(f"consensusLabel_treeLevel{term_lvl}", "")
+            cat = row.get(f"confidenceCategory_treeLevel{term_lvl}", "")
+            if lbl in TERMINAL_NODES[term_lvl] and cat in ("high", "medium"):
+                return pd.Series([lbl, f"treeLevel{term_lvl}", cat])
 
         # Step 1: deepest HIGH-confidence, non-broad label (primary call)
         for lvl in sorted(TREE_LEVELS, reverse=True):
