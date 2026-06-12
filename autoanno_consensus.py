@@ -78,6 +78,11 @@ VOTERS_FINE7 = {
 }
 
 BROAD_LABELS = {"Blood Cell", "Leukocyte", "Lymphoid Cell", "Myeloid Cell"}
+# Nodes that are terminal at treeLevel2 (no children in the CT ontology).
+# Deeper tree levels are meaningless for these — voters that don't know the
+# cell type go silent at level 3+ and a single wrong voter creates spurious
+# high-confidence calls. Accept the treeLevel2 majority vote directly.
+TERMINAL_AT_L2 = {"Platelet", "HSC", "RBC"}
 TREE_LEVELS = [2, 3, 4, 5, 6]                      # autoAnno drops level 1
 TREE_COLS   = [f"treeLevel{i}" for i in range(1, 7)]
 
@@ -206,6 +211,16 @@ def main():
     fallback = args.fallback_to_lineage
 
     def suggest(row):
+        # Pre-check: terminal-at-level-2 nodes (Platelet, HSC, RBC).
+        # Deeper tree levels are invalid for these — voters that don't recognise
+        # the cell type go silent at level 3+ and a single wrong voter creates a
+        # spurious high-confidence call.  Accept treeLevel2 if majority agree.
+        l2_label = row.get("consensusLabel_treeLevel2", "")
+        l2_cat   = row.get("confidenceCategory_treeLevel2", "")
+        if l2_label in TERMINAL_AT_L2 and l2_cat in ("high", "medium"):
+            return pd.Series([l2_label, "treeLevel2",
+                              "high" if l2_cat == "high" else "medium"])
+
         # Step 1: deepest HIGH-confidence, non-broad label (primary call)
         for lvl in sorted(TREE_LEVELS, reverse=True):
             label = row.get(f"consensusLabel_treeLevel{lvl}")
