@@ -1,14 +1,29 @@
 #!/usr/bin/env bash
-set -o pipefail   # so annotate failures are caught even through the tee pipe
+# panhuman_azimuthannotatorrun.sh
+# ================================
+# Run the AIFI pan-human Azimuth annotator (panhumanpy) on all study folders
+# that contain a *_processed.h5ad, then export a lightweight per-cell CSV.
+#
+# Usage:
+#   INPUT_ROOT=/path/to/inputData \
+#   WORK_ROOT=~/hipc_run \
+#   PIXI_MANIFEST=~/envs/azimuth/pixi.toml \
+#   bash panhuman_azimuthannotatorrun.sh
+#
+# Or edit the defaults below.
 
-INPUT_ROOT="/homes/tedwards/projects/HIPC_annotation_challenge/data/inputData"
-WORK_ROOT="$HOME/hipc_run"
-PIXI_MANIFEST="$HOME/envs/azimuth/pixi.toml"
+set -o pipefail
+
+INPUT_ROOT="${INPUT_ROOT:-/path/to/HIPC_annotation_challenge/data/inputData}"
+WORK_ROOT="${WORK_ROOT:-$HOME/hipc_run}"
+PIXI_MANIFEST="${PIXI_MANIFEST:-$HOME/envs/azimuth/pixi.toml}"
 
 # -em / -umap SKIP embeddings + UMAP (per the help text).
-# Leave empty if you want them generated.
+# Set to "" if you want embeddings/UMAP generated.
 ANNOTATE_FLAGS="-em -umap"
 
+# Study folders handled separately via the full scDownstream route
+# (params_*_annotation_full.yaml); skip them here.
 SKIP=("infection_study_06" "vaccination_study_07")
 
 mkdir -p "$WORK_ROOT"

@@ -20,6 +20,14 @@ ct_crosswalk_builder.py produces (celltype_mapping_table.csv with treeLevel1..6)
         singleR_dice       <- dice.tar.labels_dice            (SingleR/dice)
         singleR_hpca       <- hpca.tar.labels_hpca            (SingleR/hpca)
 
+  --config fine6 : four + fine-depth extras only (drops azimuth_l1/l2, ImmHigh, hpca)
+        celltypist_ImmLow  <- celltypist:Immune_All_Low      (CellTypist/ImmLow)
+        celltypist_AllenL2 <- AIFI_L2                         (CellTypist/AllenL2)
+        celltypist_AllenL3 <- AIFI_L3                         (CellTypist/AllenL3)
+        singleR_fine       <- monaco_immune.tar.labels...     (SingleR/fine)
+        azimuth_l3         <- azimuth_fine                    (Azimuth/l3)
+        singleR_dice       <- dice.tar.labels_dice            (SingleR/dice)
+
 Reproduces the autoAnno chunks: mapToTree + bind, majority-vote consensus per
 tree level, confidenceCategory, suggestedCelltype (deepest high-confidence
 level), broad-ancestor downgrade, and CSV output.
@@ -58,6 +66,15 @@ VOTERS_ALL = {
     "azimuth_l3":         ("azimuth_fine",               "Azimuth",    "l3"),
     "singleR_dice":       ("dice.tar.labels_dice",       "SingleR",    "dice"),
     "singleR_hpca":       ("hpca.tar.labels_hpca",       "SingleR",    "hpca"),
+}
+VOTERS_FINE6 = {
+    **VOTERS_FOUR,
+    "azimuth_l3":   ("azimuth_fine",         "Azimuth", "l3"),
+    "singleR_dice": ("dice.tar.labels_dice", "SingleR", "dice"),
+}
+VOTERS_FINE7 = {
+    **VOTERS_FINE6,
+    "sV5_pbmc":     ("sV5celltypeL2",        "Seurat",  "pbmc2023"),
 }
 
 BROAD_LABELS = {"Blood Cell", "Leukocyte", "Lymphoid Cell", "Myeloid Cell"}
@@ -107,13 +124,18 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv", required=True)
     ap.add_argument("--mapping", required=True, help="celltype_mapping_table.csv")
-    ap.add_argument("--config", choices=["four", "all"], default="all")
+    ap.add_argument("--config", choices=["four", "all", "fine6", "fine7"], default="all")
     ap.add_argument("--barcode-col", default="auto")
     ap.add_argument("--outdir", default="consensus_out")
+    ap.add_argument("--fallback-to-lineage", action="store_true",
+                    help="Assign unresolved cells to their best medium-confidence or "
+                         "lineage-root label instead of 'unresolved'. Adds a "
+                         "suggestedCelltypeConfidence column (high/medium/lineage_*).")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
-    voters = VOTERS_FOUR if args.config == "four" else VOTERS_ALL
+    voters = {"four": VOTERS_FOUR, "all": VOTERS_ALL,
+              "fine6": VOTERS_FINE6, "fine7": VOTERS_FINE7}[args.config]
 
     anno = pd.read_csv(args.csv, dtype=str)
     mapping = pd.read_csv(args.mapping, dtype=str)
@@ -181,17 +203,52 @@ def main():
     wide.columns = [f"{val}_{lvl}" for val, lvl in wide.columns]
     wide = wide.reset_index()
 
-    def suggest(row):
-        for lvl in sorted(TREE_LEVELS, reverse=True):
-            if row.get(f"confidenceCategory_treeLevel{lvl}") == "high":
-                return pd.Series([row.get(f"consensusLabel_treeLevel{lvl}"),
-                                  f"treeLevel{lvl}"])
-        return pd.Series(["unresolved", "unresolved"])
+    fallback = args.fallback_to_lineage
 
-    wide[["suggestedCelltype", "suggestedCelltypeLevel"]] = wide.apply(suggest, axis=1)
-    broad = wide["suggestedCelltype"].isin(BROAD_LABELS)
-    wide.loc[broad, "suggestedCelltype"] = "unresolved"
-    wide.loc[wide["suggestedCelltype"] == "unresolved", "suggestedCelltypeLevel"] = "unresolved"
+    def suggest(row):
+        # Step 1: deepest HIGH-confidence, non-broad label (primary call)
+        for lvl in sorted(TREE_LEVELS, reverse=True):
+            label = row.get(f"consensusLabel_treeLevel{lvl}")
+            if (row.get(f"confidenceCategory_treeLevel{lvl}") == "high"
+                    and label and label not in BROAD_LABELS):
+                return pd.Series([label, f"treeLevel{lvl}", "high"])
+
+        if not fallback:
+            return pd.Series(["unresolved", "unresolved", "unresolved"])
+
+        # Step 2: deepest MEDIUM-confidence, non-broad label
+        # Correct at the lineage level; less confident at subtype resolution.
+        for lvl in sorted(TREE_LEVELS, reverse=True):
+            label = row.get(f"consensusLabel_treeLevel{lvl}")
+            if (row.get(f"confidenceCategory_treeLevel{lvl}") == "medium"
+                    and label and label not in BROAD_LABELS):
+                return pd.Series([label, f"treeLevel{lvl}", "medium"])
+
+        # Step 3: deepest HIGH or MEDIUM at any level including broad
+        # (Lymphoid Cell / Myeloid Cell — always correct, just broad)
+        for lvl in sorted(TREE_LEVELS, reverse=True):
+            label = row.get(f"consensusLabel_treeLevel{lvl}")
+            cat   = row.get(f"confidenceCategory_treeLevel{lvl}")
+            if cat in ("high", "medium") and label:
+                return pd.Series([label, f"treeLevel{lvl}", f"lineage_{cat}"])
+
+        # Step 4: treeLevel2 raw consensus label — Blood Cell / Lymphoid / Myeloid
+        # The majority vote at level 2 is always correct even at low confidence.
+        label = row.get("consensusLabel_treeLevel2", "")
+        if label:
+            return pd.Series([label, "treeLevel2", "lineage_low"])
+
+        return pd.Series(["unresolved", "unresolved", "unresolved"])
+
+    wide[["suggestedCelltype", "suggestedCelltypeLevel",
+          "suggestedCelltypeConfidence"]] = wide.apply(suggest, axis=1)
+
+    if not fallback:
+        # original behaviour: broad high-confidence calls → unresolved
+        broad = wide["suggestedCelltype"].isin(BROAD_LABELS)
+        wide.loc[broad, "suggestedCelltype"]           = "unresolved"
+        wide.loc[broad, "suggestedCelltypeLevel"]      = "unresolved"
+        wide.loc[broad, "suggestedCelltypeConfidence"] = "unresolved"
 
     print("\n=== suggestedCelltype counts ===")
     print(wide["suggestedCelltype"].value_counts(dropna=False))
@@ -199,8 +256,8 @@ def main():
     out_wide = os.path.join(args.outdir, f"consensus_wide_{args.config}.csv")
     out_labels = os.path.join(args.outdir, f"cell_labels_{args.config}.csv")
     wide.to_csv(out_wide, index=False)
-    wide[["cellBarcode", "suggestedCelltype", "suggestedCelltypeLevel"]].to_csv(
-        out_labels, index=False)
+    wide[["cellBarcode", "suggestedCelltype", "suggestedCelltypeLevel",
+          "suggestedCelltypeConfidence"]].to_csv(out_labels, index=False)
     print(f"\nwrote {out_labels}  ({len(wide)} cells)")
     print(f"wrote {out_wide}")
 

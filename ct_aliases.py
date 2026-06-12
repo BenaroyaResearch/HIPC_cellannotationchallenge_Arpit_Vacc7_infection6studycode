@@ -87,7 +87,7 @@ ALIASES = {
                  "megakaryocyte precursor", "megakaryocyte progenitor",
                  "mkp", "early mk", "early megakaryocyte"],
     "RBC": ["rbc", "erythrocyte", "erythrocytes", "red blood cell",
-            "erythroid", "erythroblast", "erythroid cells", "ery",
+            "erythroid", "erythroblast", "erythroid cells", "ery", "eryth",
             "late erythroid", "early erythroid", "mid erythroid",
             "early sox4+ erythroblast",
             "fetal hbg+ erythrocyte", "proerythroblast", "normoblast",
@@ -115,7 +115,9 @@ ALIASES = {
                 "cd16 nk cell", "cd56 nk cell", "cd16+ nk cells",
                 "cd16- nk cells", "cd56bright nk cell", "cd56dim nk cell",
                 "gzmk+ cd56dim nk cell", "gzmk- cd56dim nk cell",
-                "isg+ cd56dim nk cell"],
+                "isg+ cd56dim nk cell",
+                # Seurat V5 pbmc2023 labels
+                "nk_cd56bright", "nk cd56bright", "cd56bright"],
     "NKT Cell": ["nkt cell", "nkt cells", "nkt", "nk t cell"],
 
     # ---- T cell parent (generic / lineage-only / unconventional) ----
@@ -125,6 +127,8 @@ ALIASES = {
                "double positive t cell", "dn t cell", "dp t cell",
                "double-negative thymocytes", "double negative thymocytes",
                "double-positive thymocytes", "double positive thymocytes",
+               # Seurat V5 pbmc2023: dnT = double-negative T
+               "dnt", "dn t", "double negative t",
                "other t", "proliferating t", "t proliferating",
                "proliferating t cell", "cycling t cell", "cycling t cells",
                "naive t cell", "memory t cell", "inf-activated t cell",
@@ -139,6 +143,8 @@ ALIASES = {
                         "t helper cells", "memory cd4 t cell",
                         "memory cd4 t cells", "cd4 memory t cell",
                         "isg+ memory cd4 t cell",
+                        # Seurat V5 pbmc2023: cycling/proliferating CD4 → parent node
+                        "cd4 proliferating", "cd4_proliferating",
                         # polarized helper subsets: effector/memory CD4, place at parent
                         "th1 cells", "th2 cells", "th17 cells",
                         "th1 th17 cells", "th1/th17 cells",
@@ -186,7 +192,9 @@ ALIASES = {
                         "klrb1 cd8 t cell", "klrb1+ cd8 t cell",
                         # CD8 FOXP3+ Tregs: bona fide regulatory but CD8 lineage
                         "memory cd8 treg", "klrb1+ memory cd8 treg",
-                        "cd8a/b(entry)", "cd8a/b entry", "cd8ab entry"],
+                        "cd8a/b(entry)", "cd8a/b entry", "cd8ab entry",
+                        # Seurat V5 pbmc2023: cycling/proliferating CD8 → parent node
+                        "cd8 proliferating", "cd8_proliferating"],
     "CD8 Naive / T Central Memory": [
         "cd8 naive", "cd8 tcm", "cd8 naive t central memory",
         "naive cd8 t cells", "naive cd8 t cell", "central memory cd8 t cells",
@@ -217,6 +225,8 @@ ALIASES = {
                  "vd2 gd t cells", "non vd2 gd t cells", "non-vd2 gd t cells",
                  "vd1 gd t cell", "vd2 gd t cell",
                  "gzmb+ vd2 gdt", "gzmk+ vd2 gdt", "naive vd1 gdt",
+                 # Seurat V5 pbmc2023
+                 "gdt",
                  "sox4+ vd1 gdt", "klrf1+ effector vd1 gdt",
                  "klrf1- effector vd1 gdt"],
     "MAIT Cell": ["mait cell", "mait cells", "mait", "mait_cell",

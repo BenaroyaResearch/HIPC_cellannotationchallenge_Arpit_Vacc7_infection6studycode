@@ -70,6 +70,15 @@ COLUMN_METHODS_ALL = {
     "dice.tar.labels_dice":                   ("SingleR",    "dice"),
     "hpca.tar.labels_hpca":                   ("SingleR",    "hpca"),
 }
+COLUMN_METHODS_FINE6 = {
+    **COLUMN_METHODS_FOUR,
+    "azimuth_fine":          ("Azimuth", "l3"),
+    "dice.tar.labels_dice":  ("SingleR", "dice"),
+}
+COLUMN_METHODS_FINE7 = {
+    **COLUMN_METHODS_FINE6,
+    "sV5celltypeL2":         ("Seurat",  "pbmc2023"),
+}
 
 TREE_COLS = [f"treeLevel{i}" for i in range(1, 7)]
 NA_TOKENS = {"", "nan", "none", "na", "unknown", "unassigned", "unclassified",
@@ -77,7 +86,9 @@ NA_TOKENS = {"", "nan", "none", "na", "unknown", "unassigned", "unclassified",
              # non-lineage / non-cell-type tokens that must NOT be forced onto
              # the immune tree (booleans, tissue codes, lineage-free calls)
              "false", "true", "bm", "pb", "cb", "cycling cells",
-             "cycling cell", "cells"}
+             "cycling cell", "cells",
+             # non-immune stromal / contaminant labels (CellTypist ImmLow, Azimuth l3)
+             "endothelial cells", "epithelial cells", "fibroblasts", "venous ec"}
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +224,7 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ontology", required=True, help="CT ontology .xlsx/.csv")
     ap.add_argument("--csv", help="annotation CSV to pull unique labels from")
-    ap.add_argument("--config", choices=["four", "all"], default="all")
+    ap.add_argument("--config", choices=["four", "all", "fine6", "fine7"], default="all")
     ap.add_argument("--outdir", default="crosswalk_out")
     ap.add_argument("--starter", action="store_true",
                     help="ignore --csv; build crosswalk from alias vocab only")
@@ -221,8 +232,10 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
-    columns_methods = (COLUMN_METHODS_FOUR if args.config == "four"
-                       else COLUMN_METHODS_ALL)
+    columns_methods = {"four":  COLUMN_METHODS_FOUR,
+                       "all":   COLUMN_METHODS_ALL,
+                       "fine6": COLUMN_METHODS_FINE6,
+                       "fine7": COLUMN_METHODS_FINE7}[args.config]
 
     df, parent_map, clid_map, levels_map, ct_names = load_ontology(args.ontology)
 
