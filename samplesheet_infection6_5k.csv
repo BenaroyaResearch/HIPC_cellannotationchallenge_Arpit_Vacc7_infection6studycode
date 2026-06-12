@@ -1,2 +1,2 @@
 sample,filtered,min_genes,min_cells,min_counts_cell,min_counts_gene,max_mito_percentage,ambient_correction
-infection_study_06_5k,/nfs/amishra/Arpit/hipc_challenge/infection_6/infection_study_06_5k.fixed.h5ad,0,0,0,0,100,false
+infection_study_06_5k,./data/infection6/infection_study_06_5k.fixed.h5ad,0,0,0,0,100,false

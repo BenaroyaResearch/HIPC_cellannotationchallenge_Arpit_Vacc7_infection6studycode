@@ -1,2 +1,2 @@
 sample,filtered,min_genes,min_cells,min_counts_cell,min_counts_gene,max_mito_percentage,ambient_correction
-vaccination_study_07,/nfs/amishra/Arpit/hipc_challenge/vaccine_7/vaccination_study_07_processed.fixed.h5ad,0,0,0,0,100,false
+vaccination_study_07,./data/vaccine7/vaccination_study_07_processed.fixed.h5ad,0,0,0,0,100,false

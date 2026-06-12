@@ -1,10 +1,10 @@
 # ============================================================================
 # nf-core/scdownstream — CELL TYPE ANNOTATION ONLY — FULL vaccine7 (no sampling)
 # ============================================================================
-# Run (base env, with nextflow):
+# Run (from the hipc_challenge/ working directory):
 #   nextflow run nf-core/scdownstream -r dev \
 #     -params-file params_vaccine7_annotation_full.yaml \
-#     -c /home/amishra/.config/nextflow/coder.config
+#     -c <your-compute-config>.config
 #
 # Output: ./vaccine7_annotation_full/reports/artifacts/concatenated.h5ad
 #   (SingleR: hpca/monaco_immune/dice + CellTypist Immune_All_Low/High in .obs)

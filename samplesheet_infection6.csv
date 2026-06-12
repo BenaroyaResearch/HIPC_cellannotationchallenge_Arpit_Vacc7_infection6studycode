@@ -1,2 +1,2 @@
 sample,filtered,unfiltered,batch_col,condition_col,min_genes,min_cells,min_counts_cell,min_counts_gene,max_mito_percentage,ambient_correction
-infection_study_06.fixed,/nfs/amishra/Arpit/hipc_challenge/infection_6/infection_study_06_processed.fixed.h5ad,/nfs/amishra/Arpit/hipc_challenge/infection_6/infection_study_06_unfiltered.fixed.h5ad,subject_id,arm,200,3,500,10,20,true
+infection_study_06.fixed,./data/infection6/infection_study_06_processed.fixed.h5ad,./data/infection6/infection_study_06_unfiltered.fixed.h5ad,subject_id,arm,200,3,500,10,20,true

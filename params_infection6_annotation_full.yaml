@@ -2,19 +2,16 @@
 # nf-core/scdownstream — CELL TYPE ANNOTATION ONLY, NO FILTERING — FULL RUN
 # infection_study_06
 # ============================================================================
-# Run:
+# Run (from the hipc_challenge/ working directory):
 #   nextflow run nf-core/scdownstream -r dev \
 #     -params-file params_infection6_annotation_full.yaml \
-#     -c /home/amishra/.config/nextflow/coder.config
+#     -c <your-compute-config>.config
 #
-# This is the 5k-test params with `sample_n` removed (annotate ALL cells) and a
-# separate outdir. If QC_RAW OOMs on the full object, switch to the per-sample
-# split samplesheet (prep_infection6.py, MODE="full") — see chat.
+# If QC_RAW OOMs on the full object, switch to a per-sample split samplesheet.
 # ============================================================================
-#input:  './samplesheet_infection6_annotation.csv'
-#outdir: './infection6_annotation_full'
-input: './samplesheet_infection6_full.csv'
-outdir: '/nfs/amishra/Arpit/hipc_challenge/infection6_annotation_full'
+
+input:  './samplesheet_infection6_full.csv'
+outdir: './infection6_annotation_full'
 species: 'human'
 save_intermediates: false
 qc_only: true
