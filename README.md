@@ -1,80 +1,138 @@
-# HIPC Cell-Type → Cell Ontology (CT) consensus mapping
+# HIPC Cell-Type Annotation Challenge — Consensus Pipeline
 
-Maps every unique annotation label in your per-cell CSV onto the HIPC **Cell
-Ontology tree** (the 39-node `CT_Ontology_Spreadsheet`), then runs the autoAnno
-majority-vote consensus. Two voter configurations: `four` (your original script)
-and `all` (every available annotation column).
+Multi-method ensemble cell-type annotation for the HIPC single-cell RNA-seq
+annotation challenge, applied to two PBMC datasets:
 
-## Files
+- **vaccination_study_07** — 53,619 cells
+- **infection_study_06** — 827,389 cells
 
-| File | What it does |
-|------|--------------|
-| `ct_aliases.py` | Hand-curated `method label → CT node` dictionary + normaliser + fuzzy fallback. **This is the file you extend.** |
-| `ct_crosswalk_builder.py` | Reads the ontology, builds `treeLevel1..6` for each CT node, maps every unique label, emits the crosswalk + an unmapped-labels report. |
-| `autoanno_consensus.py` | Your consensus pipeline, parameterised for both configs; reads the crosswalk. |
-| `starter_all/`, `starter_four/` | Ready-made starter crosswalks built from the alias vocabulary (no CSV needed). Each contains `celltype_mapping_table.csv`, `unmapped_labels_report.csv`, `ct_tree_levels.csv`. |
+Final submission uses the **fine6** 6-voter consensus configuration.
+See `annotation.readme.docx` (in the submission ZIP) for the full methodology.
 
-## Voter configs
+---
+
+## Repository contents
+
+| File | Purpose |
+|---|---|
+| `aifi_annotation2.py` | CellTypist pass with AIFI PBMC models — adds `AIFI_L2` / `AIFI_L3` to the scDownstream h5ad |
+| `panhuman_azimuthannotatorrun.sh` | Batch Azimuth (panhumanpy) annotation across all study folders + CSV export |
+| `ct_aliases.py` | Curated alias table: maps each tool's raw label vocabulary onto CT ontology nodes |
+| `ct_crosswalk_builder.py` | Reads the CT ontology spreadsheet + alias table → per-method label → tree-level crosswalk |
+| `autoanno_consensus.py` | Per-cell majority-vote consensus at each CT tree level; outputs final labels + confidence |
+| `run_ct_consensus.sh` | Wrapper: runs crosswalk builder + consensus for one or more studies and configs |
+| `params_vaccine7_annotation_full.yaml` | nf-core/scdownstream params for vaccination_study_07 |
+| `params_infection6_annotation_full.yaml` | nf-core/scdownstream params for infection_study_06 |
+| `samplesheet_vaccine7_annotation.csv` | scDownstream input samplesheet for vaccination_study_07 |
+| `samplesheet_infection6_full.csv` | scDownstream input samplesheet for infection_study_06 (per-sample split) |
+| `celldex_references.csv` | SingleR celldex reference list (monaco_immune, dice, hpca) |
+| `CT_Ontology_Spreadsheet_20260526.xlsx` | HIPC Cell Ontology hierarchy (treeLevel1–6) |
+
+---
+
+## Pipeline overview
 
 ```
-four : celltypist:Immune_All_Low (ImmLow), AIFI_L2 (AllenL2),
-       AIFI_L3 (AllenL3), monaco_immune...labels (SingleR/fine)
-
-all  : the four above + celltypist:Immune_All_High (ImmHigh),
-       azimuth_broad/medium/fine (Azimuth l1/l2/l3),
-       dice...labels (SingleR/dice), hpca...labels (SingleR/hpca)
+raw h5ad (per study)
+       |
+       v
+[1] nf-core/scdownstream  (qc_only: true — annotation only, no filtering)
+    CellTypist: Immune_All_Low, Immune_All_High
+    SingleR:    monaco_immune, dice, hpca
+       |
+       v
+[2] aifi_annotation2.py
+    CellTypist AIFI PBMC models -> adds AIFI_L2, AIFI_L3
+       |
+       v
+[3] panhuman_azimuthannotatorrun.sh
+    panhumanpy annotate -> adds azimuth_broad, azimuth_medium, azimuth_fine
+       |
+       v
+[4] run_ct_consensus.sh  (fine6 config)
+    ct_crosswalk_builder.py  -> label x CT tree crosswalk
+    autoanno_consensus.py    -> majority vote per tree level -> final labels
 ```
 
-## Workflow on your cluster
+**Why no filtering?** Ambient correction, doublet detection, and integration are
+all disabled so that every annotator sees the same set of cells — clean merge,
+no reindexing needed.
+
+---
+
+## Voter configuration: fine6
+
+| Voter | Tool | Reference |
+|---|---|---|
+| `celltypist_ImmLow` | CellTypist 1.6.3 | Immune_All_Low |
+| `celltypist_AllenL2` | CellTypist 1.6.3 | AIFI PBMC L2 (2024-04-19) |
+| `celltypist_AllenL3` | CellTypist 1.6.3 | AIFI PBMC L3 (2024-04-19) |
+| `singleR_fine` | SingleR 2.12.0 | Monaco Immune (celldex 1.20.0) |
+| `azimuth_l3` | panhumanpy 0.5.0 | AIFI pan-human M0.2 |
+| `singleR_dice` | SingleR 2.12.0 | DICE (celldex 1.20.0) |
+
+A cell is assigned the deepest CT tree level at which > 70% of voters agree
+(`high` confidence). Cells with 50–70% agreement are assigned with `medium`
+confidence. Cells with < 50% agreement fall back to their best-supported lineage
+(e.g., Lymphoid Cell) — no cell is left unresolved.
+
+Other available configs in `autoanno_consensus.py`:
+
+| Config | Voters | Notes |
+|---|---|---|
+| `four` | 4 (base CellTypist + Monaco) | Original baseline |
+| `all` | 10 (all annotators including coarse) | Broad coverage |
+| `fine6` | 6 (fine-resolution only) | **Submission config** |
+| `fine7` | 7 (fine6 + Seurat V5 PBMC 2023) | Experimental |
+
+---
+
+## Running the consensus
+
+Requires the per-cell annotation CSVs produced by stages 1–3 and the CT
+ontology spreadsheet. Update the `STUDIES` paths in `run_ct_consensus.sh`
+to point at your CSVs, then:
 
 ```bash
-# 1. Build the crosswalk from the ACTUAL unique labels in your CSV.
-#    (Run once per config. This also flags labels that need curation.)
-python ct_crosswalk_builder.py \
-    --ontology CT_Ontology_Spreadsheet_20260526.xlsx \
-    --csv /nfs/.../concatenated_AIFI2_ANN_annotations.csv \
-    --config all --outdir crosswalk_all
-
-# 2. Open crosswalk_all/unmapped_labels_report.csv.
-#    - rows with a fuzzyGuess: confirm or correct.
-#    - rows with empty fuzzyGuess: add the label to the right CT node in ct_aliases.py.
-#    Re-run step 1 until 'needs review' is acceptable.
-
-# 3. Run the consensus.
-python autoanno_consensus.py \
-    --csv /nfs/.../concatenated_AIFI2_ANN_annotations.csv \
-    --mapping crosswalk_all/celltype_mapping_table.csv \
-    --config all --barcode-col auto --outdir consensus_all
+# Run fine6 consensus for both datasets
+BASE=$(pwd) ./run_ct_consensus.sh fine6 vaccine7
+BASE=$(pwd) ./run_ct_consensus.sh fine6 infection6
 ```
 
-Repeat with `--config four` for the 4-voter version.
+Outputs go to `ct_consensus_runs/`:
 
-## Outputs
+| File | Contents |
+|---|---|
+| `crosswalk_fine6_<study>/celltype_mapping_table.csv` | Per-method label → CT tree-level crosswalk |
+| `crosswalk_fine6_<study>/unmapped_labels_report.csv` | Labels that need curation in `ct_aliases.py` |
+| `consensus_fine6_<study>/cell_labels_fine6.csv` | Final per-cell labels + confidence |
+| `consensus_fine6_<study>/consensus_wide_fine6.csv` | Full wide table: all tree levels, scores, categories |
 
-- `cell_labels_<config>.csv` — `cellBarcode, suggestedCelltype, suggestedCelltypeLevel`
-- `consensus_wide_<config>.csv` — per-level consensus label, agreement score, confidence category
+---
 
-## How the mapping works
+## Requirements
 
-Each method label is resolved to a CT node by (a) exact alias lookup in
-`ct_aliases.ALIASES`, else (b) a conservative fuzzy match (token-set + difflib,
-cutoff 0.84). The CT node is expanded to its full root→node path
-(`Blood Cell > Leukocyte > … > node`) which becomes `treeLevel1..6`. The
-consensus then majority-votes per tree level (level 1 dropped), assigns
-`high` (>0.7), `medium` (≥0.5), or `low` confidence, and reports the deepest
-high-confidence level as `suggestedCelltype`. Broad ancestors (Blood Cell,
-Leukocyte, Lymphoid Cell, Myeloid Cell) are downgraded to `unresolved`, exactly
-like autoAnno.
+| Tool | Version |
+|---|---|
+| Nextflow | ≥ 26 |
+| nf-core/scdownstream | v0.0.1dev-gbcb4c67 |
+| CellTypist | 1.6.3 |
+| SingleR | 2.12.0 |
+| celldex | 1.20.0 |
+| panhumanpy (Azimuth) | 0.5.0 |
+| Python | ≥ 3.10 |
+| pandas / numpy / anndata / openpyxl | 2.3 / 1.26 / 0.8 / 3.1 |
+| R | 4.5.3 |
 
-## Notes / caveats
+Python env: `pip install celltypist scanpy anndata pandas numpy openpyxl`
 
-- **The starter crosswalks cover common Monaco / Azimuth / CellTypist / AIFI /
-  DICE / HPCA vocabularies.** Your real CSV will contain labels not yet aliased
-  — that's what the unmapped report is for. Curating it is the one manual step.
-- The join is normalisation-robust (case / punctuation / whitespace), so you
-  don't need exact casing when adding aliases.
-- `--barcode-col auto` tries `cell_barcode`, `cellBarcode`, `barcode`,
-  `cell_id`, `index`, `Unnamed: 0`, then falls back to the row index. Pass an
-  explicit column if your barcodes live elsewhere.
-- Fuzzy matches are advisory. Anything below the cutoff is left unmapped rather
-  than guessed, to avoid silently miscalling cells.
+Azimuth env: `pixi` with `panhumanpy` — see `panhuman_azimuthannotatorrun.sh`
+for `PIXI_MANIFEST` setup.
+
+---
+
+## Label curation
+
+`ct_aliases.py` is the single file to extend when a new label vocabulary is
+encountered. After adding aliases, re-run `run_ct_consensus.sh` to regenerate
+the crosswalk — the unmapped labels report will confirm zero residual gaps.
